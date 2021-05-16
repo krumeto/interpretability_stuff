@@ -1,7 +1,11 @@
 import streamlit as st
+st.set_page_config(layout="wide")
 import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
+
+import hiplot as hip
+import json
 
 # explicitly require this experimental feature
 from sklearn.experimental import enable_hist_gradient_boosting  # noqa
@@ -25,11 +29,20 @@ data_input = st.radio('Slide to select', options=['Use the example dataset','Upl
 if data_input == 'Upload yours':
     data = st.file_uploader('Import your own data, but please let it be in a csv format', type='csv')
 
-
-data = pd.read_csv('data/penguins.csv')
+else:
+    data = pd.read_csv('data/penguins.csv')
 st.write(data.head())
 st.write('Percentage of NA values')
 st.write(data.isna().mean())
+
+"""
+### HIPLOT view
+"""
+hiplot_data = data.to_dict(orient='records')
+xp = hip.Experiment.from_iterable(hiplot_data)
+
+ret_val = xp.to_streamlit(ret="selected_uids", key="hip").display()
+st.markdown("hiplot returned " + json.dumps(ret_val))
 
 """
 ### Step 2: Select a target variable
@@ -107,12 +120,27 @@ for f in features:
     ice_plots = st.selectbox(
     f'Plot type for feature {f}:', 
     ["average", "individual", "both"])
+
+    method = st.selectbox(
+    f'PDP calculation method {f}:', 
+    ["recursion", "brute", "both"])
     fig, ax = plt.subplots()
     
     if len(le.classes_) > 2:
-        plot_partial_dependence(clf, X, [f], target = [int(pdp_target)], kind = ice_plots,ax=ax) 
+        if method == 'both':
+            p1 = plot_partial_dependence(clf, X, [f], target = [int(pdp_target)], kind = ice_plots,ax=ax, method='recursion')
+            p2 = plot_partial_dependence(clf, X, [f], target = [int(pdp_target)], kind = ice_plots,ax=ax, method='brute', line_kw={'color':'red'})
+            ax.legend()
+        else:
+            plot_partial_dependence(clf, X, [f], target = [int(pdp_target)], kind = ice_plots,ax=ax, method=method)
     else:
-        plot_partial_dependence(clf, X, [f], kind = ice_plots, ax=ax)
+        if method == 'both':
+            p1 = plot_partial_dependence(clf, X, [f],  kind = ice_plots,ax=ax, method='recursion')
+            p2 = plot_partial_dependence(clf, X, [f],  kind = ice_plots,ax=ax, method='brute', line_kw={'color':'red'})
+            ax.legend()
+        else:
+            plot_partial_dependence(clf, X, [f], kind = ice_plots,ax=ax, method=method)
+
     st.pyplot(fig)
 
 if multi_features:
